@@ -1,35 +1,41 @@
-# React + TypeScript + Vite
+# Planeja-se
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+MVP de organização financeira pessoal e empresarial, feito com React, TypeScript e Vite.
+O layout e os componentes usam Tailwind CSS v4; `src/styles/app.css` mantém apenas os detalhes visuais específicos do produto, como gráficos e estados de marca.
 
-Currently, two official plugins are available:
+## Estrutura
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
-
-Note: This will impact Vite dev & build performances.
-You can also try [the experimental native React Compiler support in plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#rust-react-compiler) by using `compiler: true` in the plugin options instead of using the Babel plugin.
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```text
+src/
+  app/                    # Controller da aplicação, navegação e persistência
+  components/             # Componentes compartilhados entre funcionalidades
+  features/
+    accounts/             # Contas e seus extratos
+    auth/                 # Telas demonstrativas de cadastro e login
+    dashboard/            # Visão geral e indicadores
+    finance/              # Tipos, dados iniciais e formatação financeira
+    goals/                # Metas e aportes
+    recommendations/      # Ajuda e recomendações
+    transactions/         # Lançamentos, filtros, log e leitura de extratos
+  styles/                 # Estilos globais e da aplicação
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Desenvolvimento
+
+```sh
+npm install
+npm run dev
+```
+
+Para verificar o build de produção:
+
+```sh
+npm run build
+```
+
+## Escopo do protótipo
+
+- Cadastro e login são demonstrativos; não há autenticação de servidor.
+- Os dados são persistidos no `localStorage` deste navegador e separados entre os espaços pessoal e empresarial.
+- A leitura de imagem usa OCR no navegador. Os campos reconhecidos devem ser conferidos antes do registro.
+- Contas bancárias não são conectadas automaticamente.
