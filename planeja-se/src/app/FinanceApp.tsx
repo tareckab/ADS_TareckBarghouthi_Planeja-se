@@ -228,7 +228,7 @@ export default function FinanceApp() {
             </button>
           </div>
         </header>
-        <div className="content-wrap mx-auto w-full max-w-[1200px] px-[38px] pb-[45px] pt-[35px] max-[1100px]:px-[25px] max-[760px]:px-4 max-[760px]:pb-[30px] max-[760px]:pt-6 max-[480px]:px-3 max-[480px]:pb-[25px] max-[480px]:pt-[21px]">
+        <div className="content-wrap w-full  px-[38px] pb-[45px] pt-[35px] max-[1100px]:px-[25px] max-[760px]:px-4 max-[760px]:pb-[30px] max-[760px]:pt-6 max-[480px]:px-3 max-[480px]:pb-[25px] max-[480px]:pt-[21px]">
           {page === "home" && (
             <DashboardPage
               name={store.user.name}

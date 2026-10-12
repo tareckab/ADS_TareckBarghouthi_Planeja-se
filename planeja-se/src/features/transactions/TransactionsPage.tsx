@@ -29,7 +29,7 @@ export function TransactionsPage({
   onAdd: () => void;
 }) {
   return (
-    <div className="page-content grid gap-5 max-[480px]:gap-[13px]">
+    <div className="page-content grid gap-10 max-[480px]:gap-[13px]">
       <Heading
         eyebrow="MOVIMENTAÇÕES"
         title="Cada detalhe conta."
@@ -40,7 +40,7 @@ export function TransactionsPage({
           </button>
         }
       />
-      <section className="panel list-panel min-w-0 rounded-md border border-[#e8ece6] bg-white p-0">
+      <section className="panel list-panel p-2.5 min-w-0 rounded-md border border-[#e8ece6] bg-white ">
         <div className="movement-tools">
           <label className="search-box">
             <Search size={16} />
