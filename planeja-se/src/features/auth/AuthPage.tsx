@@ -1,21 +1,24 @@
 import { useState } from 'react';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
-import type { User } from '../finance/model';
+import type { Credentials } from '../finance/api';
 
 export function AuthPage({
-  onBack,
   onSubmit,
+  submitting,
+  error,
 }: {
-  onBack: () => void;
-  onSubmit: (user: User) => void;
+  onSubmit: (credentials: Credentials) => void;
+  submitting: boolean;
+  error: string;
 }) {
   const [register, setRegister] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   return (
     <main className="auth-screen">
       <section className="auth-art">
-        <button className="wordmark" onClick={onBack}>
+        <div className="wordmark">
           <span className="brand-symbol">
             <i />
             <i />
@@ -24,7 +27,7 @@ export function AuthPage({
           <span>
             planeja<span>-</span>se
           </span>
-        </button>
+        </div>
         <div>
           <span className="eyebrow">CUIDAR DO SEU FUTURO COMEÇA AGORA</span>
           <h1>
@@ -40,14 +43,16 @@ export function AuthPage({
         <small>Planejar também é uma forma de cuidado.</small>
       </section>
       <section className="auth-content">
-        <button className="back-to-app" onClick={onBack}>
-          <ArrowRight size={15} /> Voltar para o painel
-        </button>
         <form
           className="auth-form"
           onSubmit={(e) => {
             e.preventDefault();
-            onSubmit({ name: name.trim() || email.split("@")[0], email });
+            onSubmit({
+              mode: register ? 'register' : 'login',
+              name: name.trim(),
+              email,
+              password,
+            });
           }}
         >
           <span className="eyebrow">
@@ -86,14 +91,17 @@ export function AuthPage({
             Senha
             <input
               type="password"
-              minLength={6}
+              minLength={register ? 8 : 1}
               autoComplete={register ? "new-password" : "current-password"}
-              placeholder="Pelo menos 6 caracteres"
+              placeholder={register ? "Pelo menos 8 caracteres" : "Sua senha"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
           </label>
-          <button className="button-primary auth-submit">
-            {register ? "Criar conta" : "Entrar"} <ArrowRight size={16} />
+          {error && <p className="auth-error" role="alert" style={{ color: '#a3483f', fontSize: 12 }}>{error}</p>}
+          <button className="button-primary auth-submit" disabled={submitting}>
+            {submitting ? "Conectando..." : register ? "Criar conta" : "Entrar"} <ArrowRight size={16} />
           </button>
           <div className="auth-toggle">
             {register ? "Já tem uma conta?" : "Ainda não tem conta?"}{" "}
@@ -102,8 +110,8 @@ export function AuthPage({
             </button>
           </div>
           <small className="auth-disclaimer">
-            <ShieldCheck size={15} /> Acesso demonstrativo; dados salvos neste
-            navegador.
+            <ShieldCheck size={15} /> Seus dados são sincronizados com sua conta
+            no Planeja-se.
           </small>
         </form>
       </section>
