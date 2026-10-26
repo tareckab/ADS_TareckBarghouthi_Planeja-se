@@ -1,11 +1,12 @@
 import type { Account, Activity, Goal, Kind, Movement, User, Workspace } from './model';
 
-const TOKEN_KEY = 'planeja-se-api-token';
+const SESSION_KEY = 'planeja-se-api-session';
+const LEGACY_TOKEN_KEY = 'planeja-se-api-token';
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 
 type WorkspaceInfo = { id: string; kind: Workspace };
 type SessionResponse = {
-  token: string;
+  session: string;
   user: User & { id: string };
   workspaces: WorkspaceInfo[];
 };
@@ -35,7 +36,7 @@ export class ApiError extends Error {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   if (options.body) headers.set('Content-Type', 'application/json');
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(SESSION_KEY);
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
   let response: Response;
@@ -57,9 +58,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const financeApi = {
-  getToken: () => localStorage.getItem(TOKEN_KEY),
-  setToken: (token: string) => localStorage.setItem(TOKEN_KEY, token),
-  clearToken: () => localStorage.removeItem(TOKEN_KEY),
+  getSession: () => {
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+    return localStorage.getItem(SESSION_KEY);
+  },
+  setSession: (session: string) => localStorage.setItem(SESSION_KEY, session),
+  clearSession: () => localStorage.removeItem(SESSION_KEY),
 
   authenticate: (credentials: Credentials) =>
     request<SessionResponse>(credentials.mode === 'register' ? '/auth/register' : '/auth/login', {
@@ -71,6 +75,7 @@ export const financeApi = {
       ),
     }),
 
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
   me: () => request<User & { id: string }>('/me'),
   workspaces: () => request<WorkspaceInfo[]>('/workspaces'),
   data: (workspaceId: string) => request<ApiData>(`/workspaces/${workspaceId}/data`),

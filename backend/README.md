@@ -22,18 +22,19 @@ No `.env`, substitua `SUA_SENHA` pela senha do usuário `postgres`. O servidor l
 
 Alternativamente, para iniciar uma instância isolada PostgreSQL 17 com Docker Compose, use `docker compose up -d` e altere `DATABASE_URL` no `.env` para `postgresql://planeja:planeja@localhost:5432/planeja_se`.
 
-Defina `JWT_SECRET` em `.env` com pelo menos 32 caracteres aleatórios antes de usar a API fora do ambiente local. O script de migração é idempotente e pode ser executado novamente.
+O script de migração é idempotente e pode ser executado novamente. As sessões expiram após 12 horas e podem ser encerradas pelo endpoint de logout.
 
-A API inicia em `http://localhost:3000`; `GET /health` verifica a conexão com o banco. `CORS_ORIGINS` aceita uma lista de origens separadas por vírgula.
+A API inicia em `http://localhost:3000`; `GET /health` verifica a conexão com o banco. A documentação interativa Swagger fica disponível em `http://localhost:3000/api-docs`. `CORS_ORIGINS` aceita uma lista de origens separadas por vírgula.
 
 ## Endpoints
 
-As rotas abaixo de `/api` (exceto cadastro e login) exigem `Authorization: Bearer <token>`.
+As rotas abaixo de `/api` (exceto cadastro e login) exigem `Authorization: Bearer <sessão>`. A credencial de sessão é aleatória e armazenada no banco apenas como hash.
 
 | Método | Rota | Descrição |
 | --- | --- | --- |
 | POST | `/api/auth/register` | Cria usuário e espaços pessoal/empresarial |
-| POST | `/api/auth/login` | Autentica usuário e retorna token JWT |
+| POST | `/api/auth/login` | Autentica usuário e cria uma sessão |
+| POST | `/api/auth/logout` | Encerra a sessão autenticada |
 | GET | `/api/me` | Retorna o usuário autenticado |
 | GET | `/api/workspaces` | Lista os espaços do usuário |
 | GET | `/api/workspaces/:workspaceId/data` | Retorna contas, movimentações, metas e atividade |

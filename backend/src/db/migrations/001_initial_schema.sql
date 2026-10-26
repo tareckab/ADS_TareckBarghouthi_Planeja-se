@@ -8,6 +8,14 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS workspaces (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -74,3 +82,4 @@ CREATE INDEX IF NOT EXISTS accounts_workspace_idx ON accounts (workspace_id);
 CREATE INDEX IF NOT EXISTS goals_workspace_idx ON goals (workspace_id);
 CREATE INDEX IF NOT EXISTS activity_workspace_idx
   ON activity (workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions (expires_at);

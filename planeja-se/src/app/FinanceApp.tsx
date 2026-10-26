@@ -78,7 +78,7 @@ export default function FinanceApp() {
   useEffect(() => {
     let active = true;
     const restoreSession = async () => {
-      if (!financeApi.getToken()) {
+      if (!financeApi.getSession()) {
         setBooting(false);
         return;
       }
@@ -98,7 +98,7 @@ export default function FinanceApp() {
           setAuthError('');
         }
       } catch (error) {
-        if (error instanceof ApiError && error.status === 401) financeApi.clearToken();
+        if (error instanceof ApiError && error.status === 401) financeApi.clearSession();
         if (active) setAuthError(errorMessage(error));
       } finally {
         if (active) setBooting(false);
@@ -138,7 +138,7 @@ export default function FinanceApp() {
     let authenticated = false;
     try {
       const session = await financeApi.authenticate(credentials);
-      financeApi.setToken(session.token);
+      financeApi.setSession(session.session);
       authenticated = true;
       const loaded = await loadStore(
         session.user,
@@ -151,18 +151,24 @@ export default function FinanceApp() {
       setSignedIn(true);
       notice(credentials.mode === 'register' ? 'Conta criada com sucesso.' : `Bem-vindo(a), ${session.user.name.split(' ')[0]}.`);
     } catch (error) {
-      if (!authenticated) financeApi.clearToken();
+      if (!authenticated) financeApi.clearSession();
       setAuthError(errorMessage(error));
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const signOut = () => {
-    financeApi.clearToken();
-    setModal(null);
-    setSignedIn(false);
-    setAuthError('');
+  const signOut = async () => {
+    try {
+      await financeApi.logout();
+    } catch (error) {
+      notice(errorMessage(error), true);
+    } finally {
+      financeApi.clearSession();
+      setModal(null);
+      setSignedIn(false);
+      setAuthError('');
+    }
   };
 
   const reloadWorkspace = async (workspace: Workspace) => {
@@ -203,9 +209,7 @@ export default function FinanceApp() {
     }
   };
 
-  const handleSignOut = () => {
-    signOut();
-  };
+  const handleSignOut = () => void signOut();
   const filtered = data.movements.filter(
     (m) =>
       (kindFilter === "all" || m.kind === kindFilter) &&

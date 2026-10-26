@@ -1,14 +1,15 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { config } from './config.js';
 import { pool } from './db/pool.js';
 import { requireAuth } from './middleware/auth.js';
+import { openApiSpec } from './openapi.js';
+import swaggerUi from 'swagger-ui-express';
 
 const app = express();
 const api = express.Router();
@@ -61,6 +62,18 @@ async function ownedWorkspace(workspaceId: string, userId: string) {
   return result.rows[0] as { id: string; kind: 'personal' | 'business' } | undefined;
 }
 
+async function createSession(userId: string) {
+  const sessionKey = randomBytes(32).toString('base64url');
+  const tokenHash = createHash('sha256').update(sessionKey).digest('hex');
+  await pool.query('DELETE FROM sessions WHERE expires_at <= now()');
+  await pool.query(
+    `INSERT INTO sessions (user_id, token_hash, expires_at)
+     VALUES ($1, $2, now() + interval '12 hours')`,
+    [userId, tokenHash],
+  );
+  return sessionKey;
+}
+
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
@@ -86,12 +99,16 @@ api.post('/auth/register', authLimiter, asyncRoute(async (request, response) => 
        RETURNING id, kind`,
       [user.rows[0].id],
     );
+    const session = randomBytes(32).toString('base64url');
+    const tokenHash = createHash('sha256').update(session).digest('hex');
+    await client.query('DELETE FROM sessions WHERE expires_at <= now()');
+    await client.query(
+      `INSERT INTO sessions (user_id, token_hash, expires_at)
+       VALUES ($1, $2, now() + interval '12 hours')`,
+      [user.rows[0].id, tokenHash],
+    );
     await client.query('COMMIT');
-    const token = jwt.sign({}, config.JWT_SECRET, {
-      subject: user.rows[0].id,
-      expiresIn: '12h',
-    });
-    response.status(201).json({ token, user: user.rows[0], workspaces: workspaces.rows });
+    response.status(201).json({ session, user: user.rows[0], workspaces: workspaces.rows });
   } catch (error) {
     await client.query('ROLLBACK');
     if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
@@ -115,19 +132,24 @@ api.post('/auth/login', authLimiter, asyncRoute(async (request, response) => {
     response.status(401).json({ error: 'E-mail ou senha incorretos.' });
     return;
   }
-  const token = jwt.sign({}, config.JWT_SECRET, { subject: user.id, expiresIn: '12h' });
   const workspaces = await pool.query(
     'SELECT id, kind FROM workspaces WHERE owner_id = $1 ORDER BY kind',
     [user.id],
   );
+  const session = await createSession(user.id);
   response.json({
-    token,
+    session,
     user: { id: user.id, name: user.name, email: user.email },
     workspaces: workspaces.rows,
   });
 }));
 
 api.use(requireAuth);
+
+api.post('/auth/logout', asyncRoute(async (request, response) => {
+  await pool.query('DELETE FROM sessions WHERE id = $1', [request.sessionId]);
+  response.status(204).end();
+}));
 
 api.get('/me', asyncRoute(async (request, response) => {
   const result = await pool.query(
@@ -372,6 +394,11 @@ app.get('/health', asyncRoute(async (_request, response) => {
   await pool.query('SELECT 1');
   response.json({ status: 'ok', database: 'connected' });
 }));
+
+app.get('/api-docs.json', (_request, response) => {
+  response.json(openApiSpec);
+});
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
 app.use('/api', api);
 app.use((_request, response) => {
