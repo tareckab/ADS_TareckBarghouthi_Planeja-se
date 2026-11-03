@@ -78,6 +78,7 @@ const registerSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
   password: z.string().min(8).max(128),
+  workspace: workspaceSchema,
 });
 const loginSchema = z.object({
   email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
@@ -95,9 +96,9 @@ api.post('/auth/register', authLimiter, asyncRoute(async (request, response) => 
     );
     const workspaces = await client.query(
       `INSERT INTO workspaces (owner_id, kind)
-       VALUES ($1, 'personal'), ($1, 'business')
+       VALUES ($1, $2)
        RETURNING id, kind`,
-      [user.rows[0].id],
+      [user.rows[0].id, input.workspace],
     );
     const session = randomBytes(32).toString('base64url');
     const tokenHash = createHash('sha256').update(session).digest('hex');

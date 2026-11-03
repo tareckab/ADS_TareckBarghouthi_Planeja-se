@@ -5,14 +5,20 @@ API REST separada para autenticação e persistência dos dados financeiros do P
 ## Requisitos
 
 - Node.js 20 ou superior
-- Docker com Docker Compose, ou uma instância PostgreSQL 17
+- PostgreSQL 17 instalado e em execução
 
 ## Executar localmente
 
-No diretório `backend`, para usar o banco `planeja-se` criado no pgAdmin:
+Use o PostgreSQL local em `localhost:5432` e o banco `planeja-se`. Se o banco ainda não existir, crie-o pelo Query Tool do pgAdmin:
+
+```sql
+CREATE DATABASE "planeja-se";
+```
+
+No diretório `backend`, crie o `.env` somente se ainda não existir:
 
 ```powershell
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 npm install
 npm run db:migrate
 npm run dev
@@ -20,7 +26,6 @@ npm run dev
 
 No `.env`, substitua `SUA_SENHA` pela senha do usuário `postgres`. O servidor local está configurado para autenticação SCRAM e rejeitou conexões sem senha; o pgAdmin pode ter guardado a senha anteriormente. Se não souber a senha, redefina-a pelo Query Tool do pgAdmin conectado como `postgres`, por exemplo com `ALTER USER postgres WITH PASSWORD 'uma_nova_senha';`, e atualize o `.env`. Não compartilhe nem versione essa senha; `.env` já está no `.gitignore`. Caracteres especiais da senha precisam ser codificados para URL.
 
-Alternativamente, para iniciar uma instância isolada PostgreSQL 17 com Docker Compose, use `docker compose up -d` e altere `DATABASE_URL` no `.env` para `postgresql://planeja:planeja@localhost:5432/planeja_se`.
 
 O script de migração é idempotente e pode ser executado novamente. As sessões expiram após 12 horas e podem ser encerradas pelo endpoint de logout.
 
@@ -32,7 +37,7 @@ As rotas abaixo de `/api` (exceto cadastro e login) exigem `Authorization: Beare
 
 | Método | Rota | Descrição |
 | --- | --- | --- |
-| POST | `/api/auth/register` | Cria usuário e espaços pessoal/empresarial |
+| POST | `/api/auth/register` | Cria usuário e um espaço do tipo escolhido no cadastro |
 | POST | `/api/auth/login` | Autentica usuário e cria uma sessão |
 | POST | `/api/auth/logout` | Encerra a sessão autenticada |
 | GET | `/api/me` | Retorna o usuário autenticado |
@@ -44,7 +49,7 @@ As rotas abaixo de `/api` (exceto cadastro e login) exigem `Authorization: Beare
 | POST | `/api/workspaces/:workspaceId/goals` | Cria meta |
 | POST | `/api/workspaces/:workspaceId/goals/:goalId/deposits` | Registra aporte e atualiza progresso atomicamente |
 
-O cadastro aceita `{ "name": "Nome", "email": "email@exemplo.com", "password": "senha-com-8-ou-mais" }`. Os valores enviados em `amount`, `opening` e `target` são números em reais. A API verifica a propriedade do espaço de trabalho em cada operação e valida o vínculo da conta antes de registrar uma movimentação.
+O cadastro aceita `{ "name": "Nome", "email": "email@exemplo.com", "password": "senha-com-8-ou-mais", "workspace": "personal" }`; `workspace` deve ser `personal` ou `business` e fica definido na criação da conta. Os valores enviados em `amount`, `opening` e `target` são números em reais. A API verifica a propriedade do espaço de trabalho em cada operação e valida o vínculo da conta antes de registrar uma movimentação.
 
 ## Build de produção
 

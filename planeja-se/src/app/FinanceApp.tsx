@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeftRight, ArrowRight, Bell, BriefcaseBusiness, Check, ChevronDown, Gauge, Goal, Landmark, LogOut, Menu, ShieldCheck, Sparkles, Wallet, X } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Bell, BriefcaseBusiness, Check, Gauge, Goal, Landmark, LogOut, Menu, ShieldCheck, Sparkles, Wallet, X } from 'lucide-react';
 import type { Account, Data, Kind, Modal, Movement, Page, Store, User, Workspace } from '../features/finance/model';
 import { ApiError, financeApi, type ApiData, type Credentials, type WorkspaceInfo } from '../features/finance/api';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
@@ -18,8 +18,6 @@ const nav: { id: Page; label: string; icon: typeof Gauge }[] = [
   { id: 'help', label: 'Ajuda e recomenda\u00e7\u00f5es', icon: Sparkles },
 ];
 
-const WORKSPACE_KEY = 'planeja-se-workspace';
-
 function emptyData(): Data {
   return { accounts: [], movements: [], goals: [], activity: [] };
 }
@@ -27,25 +25,27 @@ function emptyData(): Data {
 async function loadStore(
   user: User,
   workspaces: WorkspaceInfo[],
-  preferredWorkspace: Workspace,
-): Promise<{ store: Store; workspaceIds: Record<Workspace, string> }> {
+): Promise<{ store: Store; workspaceIds: Partial<Record<Workspace, string>> }> {
   const workspaceIds = Object.fromEntries(
     workspaces.map(({ id, kind }) => [kind, id]),
   ) as Partial<Record<Workspace, string>>;
-  if (!workspaceIds.personal || !workspaceIds.business) {
-    throw new Error('A conta não possui os espaços pessoal e empresarial configurados.');
+  const selectedWorkspace = workspaces.find(({ kind }) => kind === 'personal')
+    ?? workspaces.find(({ kind }) => kind === 'business');
+  if (!selectedWorkspace) {
+    throw new Error('A conta não possui um espaço de trabalho configurado.');
   }
 
-  const [personal, business] = await Promise.all([
-    financeApi.data(workspaceIds.personal),
-    financeApi.data(workspaceIds.business),
-  ]);
+  const selectedData = await financeApi.data(selectedWorkspace.id);
+  const workspace = selectedWorkspace.kind;
   return {
-    workspaceIds: workspaceIds as Record<Workspace, string>,
+    workspaceIds,
     store: {
       user,
-      workspace: preferredWorkspace,
-      data: { personal, business },
+      workspace,
+      data: {
+        personal: workspace === 'personal' ? selectedData : emptyData(),
+        business: workspace === 'business' ? selectedData : emptyData(),
+      },
     },
   };
 }
@@ -87,10 +87,7 @@ export default function FinanceApp() {
           financeApi.me(),
           financeApi.workspaces(),
         ]);
-        const preferred = localStorage.getItem(WORKSPACE_KEY) === 'business'
-          ? 'business'
-          : 'personal';
-        const session = await loadStore(user, workspaces, preferred);
+        const session = await loadStore(user, workspaces);
         if (active) {
           setStore(session.store);
           setWorkspaceIds(session.workspaceIds);
@@ -143,11 +140,9 @@ export default function FinanceApp() {
       const loaded = await loadStore(
         session.user,
         session.workspaces,
-        'personal',
       );
       setStore(loaded.store);
       setWorkspaceIds(loaded.workspaceIds);
-      localStorage.setItem(WORKSPACE_KEY, 'personal');
       setSignedIn(true);
       notice(credentials.mode === 'register' ? 'Conta criada com sucesso.' : `Bem-vindo(a), ${session.user.name.split(' ')[0]}.`);
     } catch (error) {
@@ -198,17 +193,6 @@ export default function FinanceApp() {
       'Movimentação registrada.',
     );
 
-  const changeWorkspace = async (workspace: Workspace) => {
-    try {
-      await reloadWorkspace(workspace);
-      setStore((current) => ({ ...current, workspace }));
-      localStorage.setItem(WORKSPACE_KEY, workspace);
-      setAccountFilter('all');
-    } catch (error) {
-      notice(errorMessage(error), true);
-    }
-  };
-
   const handleSignOut = () => void signOut();
   const filtered = data.movements.filter(
     (m) =>
@@ -250,7 +234,7 @@ export default function FinanceApp() {
             planeja<span>-</span>se
           </span>
         </button>
-        <div className="workspace-picker">
+        <div className="workspace-indicator" aria-label="Espaço de trabalho escolhido no cadastro">
           <span className={`workspace-mark ${store.workspace}`}>
             {store.workspace === "personal" ? (
               <Wallet size={17} />
@@ -258,16 +242,8 @@ export default function FinanceApp() {
               <BriefcaseBusiness size={17} />
             )}
           </span>
-          <label htmlFor="workspace">ESPAÇO DE TRABALHO</label>
-          <select
-            id="workspace"
-            value={store.workspace}
-            onChange={(e) => void changeWorkspace(e.target.value as Workspace)}
-          >
-            <option value="personal">Pessoal</option>
-            <option value="business">Empresarial</option>
-          </select>
-          <ChevronDown size={14} />
+          <span className="workspace-indicator-label">ESPAÇO DE TRABALHO</span>
+          <strong>{store.workspace === 'personal' ? 'Pessoal' : 'Empresarial'}</strong>
         </div>
         <span className="nav-overline">MENU</span>
         <nav>

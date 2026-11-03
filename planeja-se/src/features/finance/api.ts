@@ -13,6 +13,7 @@ type SessionResponse = {
 type Credentials = {
   mode: 'login' | 'register';
   name?: string;
+  workspace?: Workspace;
   email: string;
   password: string;
 };
@@ -70,7 +71,12 @@ export const financeApi = {
       method: 'POST',
       body: JSON.stringify(
         credentials.mode === 'register'
-          ? { name: credentials.name, email: credentials.email, password: credentials.password }
+          ? {
+              name: credentials.name,
+              email: credentials.email,
+              password: credentials.password,
+              workspace: credentials.workspace,
+            }
           : { email: credentials.email, password: credentials.password },
       ),
     }),
