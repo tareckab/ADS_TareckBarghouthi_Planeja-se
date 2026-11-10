@@ -108,9 +108,15 @@ export default function FinanceApp() {
   }, []);
 
   const data = store.data[store.workspace];
-  const currentMonth = new Date().getMonth();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+  const monthStart = `${currentYear}-${currentMonth}-01`;
+  const monthEnd = `${currentYear}-${currentMonth}-${String(
+    new Date(currentYear, now.getMonth() + 1, 0).getDate(),
+  ).padStart(2, '0')}`;
   const monthly = data.movements.filter(
-    (m) => new Date(`${m.date}T12:00:00`).getMonth() === currentMonth,
+    (movement) => movement.date >= monthStart && movement.date <= monthEnd,
   );
   const income = monthly
     .filter((m) => m.kind === "income")
