@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { createWorker } from 'tesseract.js';
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Check, ChevronDown, Clock3, FileText, Filter, ImagePlus, Plus, Search, ShieldCheck, Upload } from 'lucide-react';
 import type { Account, Activity, Kind, Movement } from '../finance/model';
-import { isoDate } from '../finance/model';
+import { isoDate, maskCurrency, parseCurrency, toTitleCase } from '../finance/model';
 import { Heading, ModalFrame, MovementList } from '../../components/finance';
 
 export function TransactionsPage({
@@ -158,7 +158,13 @@ export function MovementFormModal({
         ),
       ).map((m) => m[1]);
       if (candidates.length)
-        setAmount(candidates.at(-1)!.replaceAll(".", "").replace(",", "."));
+      {
+        const found = candidates.at(-1)!;
+        const value = /,\d{2}$/.test(found)
+          ? parseCurrency(found)
+          : Number(found);
+        setAmount(maskCurrency(String(Math.round(value * 100))));
+      }
       const firstLine = data.text
         .split("\n")
         .map((line) => line.trim())
@@ -176,8 +182,8 @@ export function MovementFormModal({
   const submit = (e: FormEvent) => {
     e.preventDefault();
     onSave({
-      title: title.trim(),
-      amount: Number(amount.replace(",", ".")),
+      title: toTitleCase(title),
+      amount: parseCurrency(amount),
       category,
       date,
       account,
@@ -226,7 +232,7 @@ export function MovementFormModal({
               placeholder="0,00"
               value={amount}
               onChange={(e) =>
-                setAmount(e.target.value.replace(/[^\d,.]/g, ""))
+                setAmount(maskCurrency(e.target.value))
               }
               required
             />
@@ -313,7 +319,7 @@ export function MovementFormModal({
           <button
             className="button-primary"
             disabled={
-              !title.trim() || Number(amount.replace(",", ".")) <= 0 || !account
+              !title.trim() || parseCurrency(amount) <= 0 || !account
             }
           >
             Registrar lançamento <ArrowRight size={15} />

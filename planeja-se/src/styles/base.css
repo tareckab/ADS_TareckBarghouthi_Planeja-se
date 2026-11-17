@@ -37,13 +37,3 @@ body {
   min-height: 100vh;
   background: #f7f8f4;
 }
-
-button,
-input,
-select {
-  font: inherit;
-}
-
-button {
-  color: inherit;
-}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, CirclePlus, Goal, Plus, Sparkles } from 'lucide-react';
 import type { Goal as SavingGoal } from '../finance/model';
-import { money } from '../finance/model';
+import { maskCurrency, money, parseCurrency, toTitleCase } from '../finance/model';
 import { Heading, ModalFrame, Progress } from '../../components/finance';
 
 export function GoalsPage({
@@ -100,8 +100,8 @@ export function GoalFormModal({
         onSubmit={(e) => {
           e.preventDefault();
           onSave({
-            title: title.trim(),
-            target: Number(target.replace(",", ".")),
+            title: toTitleCase(title),
+            target: parseCurrency(target),
             color: ["green", "blue", "orange"][Math.floor(Math.random() * 3)],
           });
         }}
@@ -122,7 +122,7 @@ export function GoalFormModal({
             inputMode="decimal"
             placeholder="0,00"
             value={target}
-            onChange={(e) => setTarget(e.target.value.replace(/[^\d,.]/g, ""))}
+            onChange={(e) => setTarget(maskCurrency(e.target.value))}
             required
           />
         </label>
@@ -130,7 +130,7 @@ export function GoalFormModal({
           <span>Seu próximo passo, no seu ritmo.</span>
           <button
             className="button-primary"
-            disabled={!title.trim() || Number(target.replace(",", ".")) <= 0}
+            disabled={!title.trim() || parseCurrency(target) <= 0}
           >
             Criar meta <ArrowRight size={15} />
           </button>
@@ -160,7 +160,7 @@ export function GoalDepositModal({
         className="form-body"
         onSubmit={(e) => {
           e.preventDefault();
-          onSave(Number(amount.replace(",", ".")));
+          onSave(parseCurrency(amount));
         }}
       >
         <label className="form-label">
@@ -170,7 +170,7 @@ export function GoalDepositModal({
             inputMode="decimal"
             placeholder="0,00"
             value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^\d,.]/g, ""))}
+            onChange={(e) => setAmount(maskCurrency(e.target.value))}
             required
           />
         </label>
@@ -178,7 +178,7 @@ export function GoalDepositModal({
           <span>Atualiza o progresso desta meta.</span>
           <button
             className="button-primary"
-            disabled={Number(amount.replace(",", ".")) <= 0}
+            disabled={parseCurrency(amount) <= 0}
           >
             Adicionar aporte <ArrowRight size={15} />
           </button>

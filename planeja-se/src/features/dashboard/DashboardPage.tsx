@@ -1,8 +1,87 @@
-import type { ReactNode } from 'react';
-import { ArrowDownLeft, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, CirclePlus, Goal, PiggyBank, Plus, Wallet } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, CirclePlus, Goal, PiggyBank, Plus, Wallet } from 'lucide-react';
 import type { Account, Goal as SavingGoal, Movement, Page, Workspace } from '../finance/model';
 import { AccountRow, Heading, MovementList, Progress } from '../../components/finance';
 import { money } from '../finance/model';
+
+const weekdayLabels = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const monthLabels = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+type ChartPeriod = '7d' | '30d' | '90d' | '12m';
+const chartPeriods: { id: ChartPeriod; label: string; caption: string }[] = [
+  { id: '7d', label: '7 dias', caption: 'Últimos 7 dias' },
+  { id: '30d', label: '30 dias', caption: 'Últimos 30 dias' },
+  { id: '90d', label: '90 dias', caption: 'Últimos 90 dias' },
+  { id: '12m', label: '12 meses', caption: 'Últimos 12 meses' },
+];
+
+type ChartBucket = { key: string; start: string; end: string; label: string; income: number; expenses: number };
+
+const chartCurrency = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+const shortDate = (date: Date) =>
+  `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+function buildBuckets(period: ChartPeriod, movements: Movement[]): ChartBucket[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const buckets: ChartBucket[] = [];
+  const push = (start: Date, end: Date, label: string) =>
+    buckets.push({ key: localDateKey(start), start: localDateKey(start), end: localDateKey(end), label, income: 0, expenses: 0 });
+
+  if (period === '7d' || period === '30d') {
+    const total = period === '7d' ? 7 : 30;
+    for (let i = 0; i < total; i += 1) {
+      const day = new Date(today);
+      day.setDate(today.getDate() - (total - 1 - i));
+      const showLabel = period === '7d' || (total - 1 - i) % 5 === 0;
+      push(day, day, showLabel ? (period === '7d' ? weekdayLabels[day.getDay()] : shortDate(day)) : '');
+    }
+  } else if (period === '90d') {
+    for (let i = 0; i < 13; i += 1) {
+      const end = new Date(today);
+      end.setDate(today.getDate() - (12 - i) * 7);
+      const start = new Date(end);
+      start.setDate(end.getDate() - 6);
+      push(start, end, (12 - i) % 2 === 0 ? shortDate(start) : '');
+    }
+  } else {
+    for (let i = 0; i < 12; i += 1) {
+      const start = new Date(today.getFullYear(), today.getMonth() - (11 - i), 1);
+      const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+      push(start, end, monthLabels[start.getMonth()]);
+    }
+  }
+
+  movements.forEach((movement) => {
+    const bucket = buckets.find((item) => movement.date >= item.start && movement.date <= item.end);
+    if (!bucket) return;
+    if (movement.kind === 'income') bucket.income += movement.amount;
+    else bucket.expenses += movement.amount;
+  });
+  return buckets;
+}
+
+function chartAxisMaximum(value: number) {
+  if (value === 0) return 0;
+  const roughStep = value / 2;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const normalizedStep = roughStep / magnitude;
+  const step = (normalizedStep <= 1 ? 1 : normalizedStep <= 2 ? 2 : normalizedStep <= 5 ? 5 : 10) * magnitude;
+  return step * 2;
+}
 
 export function MoneyCard({
   title,
@@ -54,27 +133,18 @@ export function DashboardPage({
   onAdd: () => void;
   onPage: (p: Page) => void;
 }) {
-  const daySpend = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - 6 + i);
-    return movements
-      .filter(
-        (m) =>
-          m.date === date.toISOString().slice(0, 10) && m.kind === "expense",
-      )
-      .reduce((s, m) => s + m.amount, 0);
-  });
-  const dayIncome = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - 6 + i);
-    return movements
-      .filter(
-        (m) =>
-          m.date === date.toISOString().slice(0, 10) && m.kind === "income",
-      )
-      .reduce((s, m) => s + m.amount, 0);
-  });
-  const max = Math.max(...daySpend, ...dayIncome, 1);
+  const [period, setPeriod] = useState<ChartPeriod>('7d');
+  const chartDays = buildBuckets(period, movements);
+  const periodInfo = chartPeriods.find((item) => item.id === period) ?? chartPeriods[0];
+  const periodIncome = chartDays.reduce((sum, day) => sum + day.income, 0);
+  const periodExpenses = chartDays.reduce((sum, day) => sum + day.expenses, 0);
+  const dense = chartDays.length > 13;
+  const chartMaximum = Math.max(
+    0,
+    ...chartDays.flatMap((day) => [day.income, day.expenses]),
+  );
+  const axisMaximum = chartAxisMaximum(chartMaximum);
+  const axisLabels = [axisMaximum, axisMaximum / 2, 0];
   const goal = goals[0];
   const rate = income
     ? Math.max(0, Math.round(((income - expenses) / income) * 100))
@@ -150,9 +220,19 @@ export function DashboardPage({
               <span className="eyebrow">SEU RITMO</span>
               <h2>Como o dinheiro se move</h2>
             </div>
-            <span className="period-label">
-              <CalendarDays size={14} /> Esta semana <ChevronDown size={14} />
-            </span>
+            <div className="segmented period-switch" role="group" aria-label="Período do gráfico">
+              {chartPeriods.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={item.id === period ? 'selected' : ''}
+                  aria-pressed={item.id === period}
+                  onClick={() => setPeriod(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="chart-legend">
             <span>
@@ -164,40 +244,45 @@ export function DashboardPage({
           </div>
           <div className="chart-wrap">
             <div className="chart-labels">
-              <span>R$ 1.000</span>
-              <span>R$ 500</span>
-              <span>R$ 0</span>
+              {axisLabels.map((value, index) => (
+                <span key={index}>{chartCurrency.format(value)}</span>
+              ))}
             </div>
-            <div className="week-chart">
-              {daySpend.map((amount, i) => {
-                const earnings = dayIncome[i];
+            <div className={`week-chart${dense ? ' is-dense' : ''}`} style={{ gridTemplateColumns: `repeat(${chartDays.length}, minmax(0, 1fr))` }}>
+              {chartDays.map((day) => {
+                const earnings = day.income;
+                const expenses = day.expenses;
                 return (
-                  <div className="chart-day" key={i}>
+                  <div className="chart-day" key={day.key}>
                     <div className="bars">
                       <i
                         className="bar-in"
                         style={{
-                          height: `${Math.max(6, (earnings / max) * 74)}%`,
+                          height: earnings && axisMaximum
+                            ? `${Math.max(3, (earnings / axisMaximum) * 100)}%`
+                            : '0%',
                         }}
+                        title={`${day.start === day.end ? shortDate(new Date(`${day.start}T12:00:00`)) : `${shortDate(new Date(`${day.start}T12:00:00`))} – ${shortDate(new Date(`${day.end}T12:00:00`))}`} · Entradas: ${money(earnings)}`}
                       />
                       <i
                         className="bar-out"
                         style={{
-                          height: `${Math.max(4, (amount / max) * 74)}%`,
+                          height: expenses && axisMaximum
+                            ? `${Math.max(3, (expenses / axisMaximum) * 100)}%`
+                            : '0%',
                         }}
+                        title={`${day.start === day.end ? shortDate(new Date(`${day.start}T12:00:00`)) : `${shortDate(new Date(`${day.start}T12:00:00`))} – ${shortDate(new Date(`${day.end}T12:00:00`))}`} · Saídas: ${money(expenses)}`}
                       />
                     </div>
-                    <span>
-                      {["seg", "ter", "qua", "qui", "sex", "sáb", "dom"][i]}
-                    </span>
+                    <span>{day.label}</span>
                   </div>
                 );
               })}
             </div>
           </div>
           <div className="chart-caption">
-            <i /> Últimos 7 dias{" "}
-            <b>· {money(daySpend.reduce((s, x) => s + x, 0))} em saídas</b>
+            <i /> {periodInfo.caption}
+            <b>· {money(periodIncome)} em entradas · {money(periodExpenses)} em saídas</b>
           </div>
         </section>
         <section className="panel featured-goal">

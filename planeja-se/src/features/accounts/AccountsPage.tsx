@@ -3,7 +3,7 @@ import { ArrowRight, Landmark, MoreHorizontal, Plus, ShieldCheck, Wallet } from 
 import type { Account, Movement } from '../finance/model';
 import { Heading, MovementList } from '../../components/finance';
 import { ModalFrame } from '../../components/finance';
-import { money } from '../finance/model';
+import { maskCurrency, money, parseCurrency, toTitleCase } from '../finance/model';
 
 export function AccountsPage({
   accounts,
@@ -126,10 +126,10 @@ export function AccountFormModal({
         onSubmit={(e) => {
           e.preventDefault();
           onSave({
-            name: name.trim(),
-            bank: bank.trim(),
+            name: toTitleCase(name),
+            bank: toTitleCase(bank),
             type,
-            opening: Number(opening.replace(",", ".")) || 0,
+            opening: parseCurrency(opening),
             color: ["lavender", "mint", "peach"][Math.floor(Math.random() * 3)],
           });
         }}
@@ -175,7 +175,7 @@ export function AccountFormModal({
               placeholder="0,00"
               value={opening}
               onChange={(e) =>
-                setOpening(e.target.value.replace(/[^\d,.\-]/g, ""))
+                setOpening(maskCurrency(e.target.value, true))
               }
             />
           </label>

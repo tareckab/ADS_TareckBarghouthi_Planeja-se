@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ArrowRight, BriefcaseBusiness, ShieldCheck, Wallet } from 'lucide-react';
+import { BrandMark } from '../../components/BrandMark';
 import type { Credentials } from '../finance/api';
-import type { Workspace } from '../finance/model';
+import { toTitleCase, type Workspace } from '../finance/model';
 
 export function AuthPage({
   onSubmit,
@@ -22,11 +23,7 @@ export function AuthPage({
     <main className="auth-screen">
       <section className="auth-art">
         <div className="wordmark">
-          <span className="brand-symbol">
-            <i />
-            <i />
-            <i />
-          </span>
+          <BrandMark />
           <span>
             planeja<span>-</span>se
           </span>
@@ -56,7 +53,7 @@ export function AuthPage({
             }
             onSubmit({
               mode: register ? 'register' : 'login',
-              name: name.trim(),
+              name: toTitleCase(name),
               ...(workspace ? { workspace } : {}),
               email,
               password,

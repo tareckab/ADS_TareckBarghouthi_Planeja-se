@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeftRight, ArrowRight, Bell, BriefcaseBusiness, Check, Gauge, Goal, Landmark, LogOut, Menu, ShieldCheck, Sparkles, Wallet, X } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Bell, BriefcaseBusiness, Check, Gauge, Goal, Landmark, LogOut, Menu, Clock, Sparkles, Wallet, X } from 'lucide-react';
 import type { Account, Data, Kind, Modal, Movement, Page, Store, User, Workspace } from '../features/finance/model';
 import { ApiError, financeApi, type ApiData, type Credentials, type WorkspaceInfo } from '../features/finance/api';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
@@ -8,10 +8,24 @@ import { AccountsPage, AccountFormModal } from '../features/accounts/AccountsPag
 import { GoalsPage, GoalFormModal, GoalDepositModal } from '../features/goals/GoalsPage';
 import { RecommendationsPage } from '../features/recommendations/RecommendationsPage';
 import { AuthPage } from '../features/auth/AuthPage';
+import { BrandMark } from '../components/BrandMark';
+import { ProfileModal, UserAvatar } from '../features/profile/ProfileModal';
+import { useProfile } from '../features/profile/profile';
 import '../styles/app.css';
 
+function LiveClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const date = now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).replace('.', '');
+  const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return <time dateTime={now.toISOString()}>{date} · {time}</time>;
+}
+
 const nav: { id: Page; label: string; icon: typeof Gauge }[] = [
-  { id: 'home', label: 'Visi\u00e3o geral', icon: Gauge },
+  { id: 'home', label: 'Vis\u00e3o geral', icon: Gauge },
   { id: 'movements', label: 'Movimenta\u00e7\u00f5es', icon: ArrowLeftRight },
   { id: 'accounts', label: 'Contas', icon: Landmark },
   { id: 'goals', label: 'Metas e objetivos', icon: Goal },
@@ -107,6 +121,8 @@ export default function FinanceApp() {
     };
   }, []);
 
+  const { profile, save: saveProfile } = useProfile(store.user.email);
+  const displayName = profile.nickname || store.user.name.split(' ')[0] || store.user.name;
   const data = store.data[store.workspace];
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -231,11 +247,7 @@ export default function FinanceApp() {
           onClick={() => setPage("home")}
           aria-label="Planeja-se, início"
         >
-          <span className="brand-symbol">
-            <i />
-            <i />
-            <i />
-          </span>
+          <BrandMark />
           <span>
             planeja<span>-</span>se
           </span>
@@ -282,16 +294,10 @@ export default function FinanceApp() {
             </button>
           </div>
           <div className="side-profile">
-            <span className="user-avatar">
-              {store.user.name[0]?.toUpperCase()}
-            </span>
+            <UserAvatar name={displayName} photo={profile.photo} />
             <span>
-              <b>{store.user.name}</b>
-              <small>
-                {store.workspace === "business"
-                  ? "Perfil empresarial"
-                  : "Plano gratuito"}
-              </small>
+              <b>{displayName}</b>
+              
             </span>
             <button
               className="icon-btn"
@@ -327,7 +333,7 @@ export default function FinanceApp() {
           </div>
           <div className="top-actions">
             <span className="local-badge">
-              <ShieldCheck size={15} /> Sincronizado com a API
+              <Clock size={15} /> <LiveClock />
             </span>
             <button
               className="icon-btn notification-btn"
@@ -339,17 +345,18 @@ export default function FinanceApp() {
             </button>
             <button
               className="user-avatar top-avatar"
-              aria-label="Sair da conta"
-              onClick={handleSignOut}
+              aria-label="Abrir perfil"
+              title="Seu perfil"
+              onClick={() => setModal("profile")}
             >
-              {store.user.name[0]?.toUpperCase()}
+              {profile.photo ? <img src={profile.photo} alt="" /> : displayName[0]?.toUpperCase()}
             </button>
           </div>
         </header>
         <div className="content-wrap w-full  px-[38px] pb-[45px] pt-[35px] max-[1100px]:px-[25px] max-[760px]:px-4 max-[760px]:pb-[30px] max-[760px]:pt-6 max-[480px]:px-3 max-[480px]:pb-[25px] max-[480px]:pt-[21px]">
           {page === "home" && (
             <DashboardPage
-              name={store.user.name}
+              name={displayName}
               workspace={store.workspace}
               balance={balance}
               income={income}
@@ -414,6 +421,27 @@ export default function FinanceApp() {
             <X size={14} />
           </button>
         </div>
+      )}
+      {modal === "profile" && (
+        <ProfileModal
+          name={store.user.name}
+          email={store.user.email}
+          profile={profile}
+          onClose={() => setModal(null)}
+          onSave={(next) => {
+            const ok = saveProfile(next);
+            if (ok) {
+              setModal(null);
+              setToastIsError(false);
+              setToast("Perfil atualizado.");
+            }
+            return ok;
+          }}
+          onSignOut={() => {
+            setModal(null);
+            handleSignOut();
+          }}
+        />
       )}
       {modal === "movement" && (
         <MovementFormModal
