@@ -1,9 +1,11 @@
 import { ArrowRight, BadgeHelp, CircleHelp, Goal, HandCoins, Sparkles, TrendingDown } from 'lucide-react';
-import type { Goal as GoalData, Page, Workspace } from '../finance/model';
+import type { Goal as GoalData, Page, Summary, Workspace } from '../finance/model';
 import { Heading } from '../../components/finance';
 import { money } from '../finance/model';
+import { PerformanceBadge, SpendingCard } from './InsightCards';
 
 export function RecommendationsPage({
+  summary,
   income,
   expenses,
   balance,
@@ -11,6 +13,7 @@ export function RecommendationsPage({
   workspace,
   onPage,
 }: {
+  summary: Summary | null;
   income: number;
   expenses: number;
   balance: number;
@@ -62,12 +65,14 @@ export function RecommendationsPage({
         title="Clareza também é cuidado."
         description="Recomendações simples, calculadas a partir do seu mês atual."
       />
+      <SpendingCard summary={summary} onSetBudget={() => onPage("goals")} />
       <section className="insight-hero">
         <Sparkles size={22} />
         <span className="eyebrow">
           UM RETRATO DE {workspace === "business" ? "SEU NEGÓCIO" : "SEU MÊS"}
         </span>
         <h2>{rate}% das entradas ficam com você.</h2>
+        <PerformanceBadge summary={summary} />
         <p>
           Com saldo de {money(balance)} e {money(expenses)} em saídas, você tem
           espaço para escolher o próximo passo.

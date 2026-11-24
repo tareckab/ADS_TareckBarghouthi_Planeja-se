@@ -1,4 +1,4 @@
-import type { Account, Activity, Goal, Kind, Movement, User, Workspace } from './model';
+import type { Account, Activity, Category, Goal, Kind, Movement, MovementInput, Summary, User, Workspace } from './model';
 
 const SESSION_KEY = 'planeja-se-api-session';
 const LEGACY_TOKEN_KEY = 'planeja-se-api-token';
@@ -20,9 +20,11 @@ type Credentials = {
 type ApiData = {
   accounts: Account[];
   movements: Movement[];
+  categories: Category[];
   goals: Goal[];
   activity: Activity[];
 };
+export type BudgetInput = { month: string; kind: Kind; categoryId: string | null; amount: number };
 
 export class ApiError extends Error {
   readonly status?: number;
@@ -84,28 +86,60 @@ export const financeApi = {
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   me: () => request<User & { id: string }>('/me'),
   workspaces: () => request<WorkspaceInfo[]>('/workspaces'),
-  data: (workspaceId: string) => request<ApiData>(`/workspaces/${workspaceId}/data`),
+  data: (workspaceId: string) => request<ApiData>(`/workspaces/${encodeURIComponent(workspaceId)}/data`),
 
-  createMovement: (workspaceId: string, movement: Omit<Movement, 'id'>) =>
-    request<Movement>(`/workspaces/${workspaceId}/movements`, {
+  createMovement: (workspaceId: string, movement: MovementInput) =>
+    request<Movement>(`/workspaces/${encodeURIComponent(workspaceId)}/movements`, {
       method: 'POST',
       body: JSON.stringify(movement),
     }),
 
+  /** Edita, confirma (status 'confirmed') ou cancela/estorna (status 'cancelled'). */
+  updateMovement: (workspaceId: string, movementId: string, changes: Partial<MovementInput>) =>
+    request<Movement>(`/workspaces/${encodeURIComponent(workspaceId)}/movements/${encodeURIComponent(movementId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    }),
+
+  createCategory: (workspaceId: string, category: { name: string; kind: Kind }) =>
+    request<Category>(`/workspaces/${encodeURIComponent(workspaceId)}/categories`, {
+      method: 'POST',
+      body: JSON.stringify(category),
+    }),
+
+  deleteCategory: (workspaceId: string, categoryId: string) =>
+    request<void>(`/workspaces/${encodeURIComponent(workspaceId)}/categories/${encodeURIComponent(categoryId)}`, {
+      method: 'DELETE',
+    }),
+
+  summary: (workspaceId: string, month: string) =>
+    request<Summary>(`/workspaces/${encodeURIComponent(workspaceId)}/summary?month=${encodeURIComponent(month)}`),
+
+  saveBudget: (workspaceId: string, budget: BudgetInput) =>
+    request<{ id: string }>(`/workspaces/${encodeURIComponent(workspaceId)}/budgets`, {
+      method: 'PUT',
+      body: JSON.stringify(budget),
+    }),
+
+  deleteBudget: (workspaceId: string, budgetId: string) =>
+    request<void>(`/workspaces/${encodeURIComponent(workspaceId)}/budgets/${encodeURIComponent(budgetId)}`, {
+      method: 'DELETE',
+    }),
+
   createAccount: (workspaceId: string, account: Omit<Account, 'id'>) =>
-    request<Account>(`/workspaces/${workspaceId}/accounts`, {
+    request<Account>(`/workspaces/${encodeURIComponent(workspaceId)}/accounts`, {
       method: 'POST',
       body: JSON.stringify(account),
     }),
 
   createGoal: (workspaceId: string, goal: Omit<Goal, 'id' | 'saved'>) =>
-    request<Goal>(`/workspaces/${workspaceId}/goals`, {
+    request<Goal>(`/workspaces/${encodeURIComponent(workspaceId)}/goals`, {
       method: 'POST',
       body: JSON.stringify(goal),
     }),
 
   deposit: (workspaceId: string, goalId: string, amount: number) =>
-    request<Goal>(`/workspaces/${workspaceId}/goals/${goalId}/deposits`, {
+    request<Goal>(`/workspaces/${encodeURIComponent(workspaceId)}/goals/${encodeURIComponent(goalId)}/deposits`, {
       method: 'POST',
       body: JSON.stringify({ amount }),
     }),
@@ -116,7 +150,7 @@ export const financeApi = {
     if (filters.account !== 'all') query.set('account', filters.account);
     if (filters.search.trim()) query.set('search', filters.search.trim());
     const suffix = query.size ? `?${query.toString()}` : '';
-    return request<Movement[]>(`/workspaces/${workspaceId}/movements${suffix}`);
+    return request<Movement[]>(`/workspaces/${encodeURIComponent(workspaceId)}/movements${suffix}`);
   },
 };
 

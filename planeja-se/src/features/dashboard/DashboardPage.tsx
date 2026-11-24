@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, CirclePlus, Goal, PiggyBank, Plus, Wallet } from 'lucide-react';
-import type { Account, Goal as SavingGoal, Movement, Page, Workspace } from '../finance/model';
+import type { Account, Goal as SavingGoal, Movement, Page, Summary, Workspace } from '../finance/model';
 import { AccountRow, Heading, MovementList, Progress } from '../../components/finance';
-import { money } from '../finance/model';
+import { isConfirmed, money } from '../finance/model';
+import { PerformanceBadge, SpendingCard } from '../recommendations/InsightCards';
 
 const weekdayLabels = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const monthLabels = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -118,6 +119,7 @@ export function DashboardPage({
   accounts,
   accountBalance,
   goals,
+  summary,
   onAdd,
   onPage,
 }: {
@@ -130,11 +132,13 @@ export function DashboardPage({
   accounts: Account[];
   accountBalance: (a: Account) => number;
   goals: SavingGoal[];
+  summary: Summary | null;
   onAdd: () => void;
   onPage: (p: Page) => void;
 }) {
   const [period, setPeriod] = useState<ChartPeriod>('7d');
-  const chartDays = buildBuckets(period, movements);
+  // O gráfico de fluxo considera só o que de fato entrou/saiu (confirmadas).
+  const chartDays = buildBuckets(period, movements.filter(isConfirmed));
   const periodInfo = chartPeriods.find((item) => item.id === period) ?? chartPeriods[0];
   const periodIncome = chartDays.reduce((sum, day) => sum + day.income, 0);
   const periodExpenses = chartDays.reduce((sum, day) => sum + day.expenses, 0);
@@ -211,6 +215,7 @@ export function DashboardPage({
           <small>
             <b>{rate}%</b> das entradas deste mês
           </small>
+          <PerformanceBadge summary={summary} />
         </article>
       </section>
       <div className="home-columns grid grid-cols-[minmax(0,1.65fr)_minmax(255px,.9fr)] gap-[14px] max-[760px]:grid-cols-1">
@@ -285,6 +290,8 @@ export function DashboardPage({
             <b>· {money(periodIncome)} em entradas · {money(periodExpenses)} em saídas</b>
           </div>
         </section>
+        <div className="side-stack grid gap-[14px]">
+        <SpendingCard summary={summary} onSetBudget={() => onPage("goals")} />
         <section className="panel featured-goal">
           <div className="goal-illustration">
             <i />
@@ -308,6 +315,7 @@ export function DashboardPage({
             Acompanhar metas <ArrowRight size={15} />
           </button>
         </section>
+        </div>
       </div>
       <div className="home-columns lower-panels grid grid-cols-[minmax(0,1.65fr)_minmax(255px,.9fr)] items-start gap-[14px] max-[760px]:grid-cols-1">
         <section className="panel">

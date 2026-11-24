@@ -6,7 +6,23 @@ const MAX_FILE_BYTES = 8 * 1024 * 1024;
 export type Profile = { nickname: string; photo: string };
 const emptyProfile: Profile = { nickname: '', photo: '' };
 
-const storageKey = (email: string) => `planeja-se-profile:${email.toLowerCase()}`;
+const storageKey = (email: string) => `${PROFILE_PREFIX}${email.toLowerCase()}`;
+
+const PROFILE_PREFIX = 'planeja-se-profile:';
+
+/** Remove do navegador os perfis (apelido e foto) guardados por e-mail. */
+export function clearProfiles() {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(PROFILE_PREFIX)) keys.push(key);
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // Armazenamento indisponível: nada a limpar.
+  }
+}
 
 function readProfile(email: string): Profile {
   if (!email) return emptyProfile;

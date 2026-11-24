@@ -6,6 +6,7 @@ const configSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET deve ter pelo menos 32 caracteres.'),
 });
 
 const parsed = configSchema.safeParse(process.env);

@@ -15,3 +15,6 @@ export const pool = new pg.Pool({
 pool.on('error', (error) => {
   console.error('Erro inesperado em uma conexão ociosa do PostgreSQL:', error);
 });
+
+/** Pool ou client em transação: tudo que executa SQL parametrizado. */
+export type Queryable = { query: pg.ClientBase['query'] };

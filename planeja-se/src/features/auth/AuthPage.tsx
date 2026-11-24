@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ArrowRight, BriefcaseBusiness, ShieldCheck, Wallet } from 'lucide-react';
+import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { BrandMark } from '../../components/BrandMark';
 import type { Credentials } from '../finance/api';
-import { toTitleCase, type Workspace } from '../finance/model';
+import { toTitleCase } from '../finance/model';
 
 export function AuthPage({
   onSubmit,
@@ -17,8 +17,6 @@ export function AuthPage({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [workspaceError, setWorkspaceError] = useState('');
   return (
     <main className="auth-screen">
       <section className="auth-art">
@@ -47,14 +45,11 @@ export function AuthPage({
           className="auth-form"
           onSubmit={(e) => {
             e.preventDefault();
-            if (register && !workspace) {
-              setWorkspaceError('Escolha o tipo de espaço de trabalho para continuar.');
-              return;
-            }
             onSubmit({
               mode: register ? 'register' : 'login',
               name: toTitleCase(name),
-              ...(workspace ? { workspace } : {}),
+              // O MVP é voltado a finanças pessoais; o espaço empresarial está previsto para versões futuras.
+              workspace: 'personal',
               email,
               password,
             });
@@ -80,46 +75,6 @@ export function AuthPage({
                 required
               />
             </label>
-          )}
-          {register && (
-            <fieldset className="form-label workspace-choice">
-              <legend>Como você vai usar o Planeja-se?</legend>
-              <div className="workspace-options" role="radiogroup" aria-label="Tipo de espaço de trabalho">
-                <button
-                  type="button"
-                  className={workspace === 'personal' ? 'is-selected' : ''}
-                  role="radio"
-                  aria-checked={workspace === 'personal'}
-                  onClick={() => {
-                    setWorkspace('personal');
-                    setWorkspaceError('');
-                  }}
-                >
-                  <Wallet size={18} />
-                  <span>
-                    <strong>Pessoal</strong>
-                    <small>Organize suas finanças pessoais</small>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={workspace === 'business' ? 'is-selected' : ''}
-                  role="radio"
-                  aria-checked={workspace === 'business'}
-                  onClick={() => {
-                    setWorkspace('business');
-                    setWorkspaceError('');
-                  }}
-                >
-                  <BriefcaseBusiness size={18} />
-                  <span>
-                    <strong>Empresarial</strong>
-                    <small>Organize as finanças do seu negócio</small>
-                  </span>
-                </button>
-              </div>
-              {workspaceError && <span className="workspace-error" role="alert">{workspaceError}</span>}
-            </fieldset>
           )}
           <label className="form-label">
             E-mail

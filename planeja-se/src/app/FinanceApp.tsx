@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeftRight, ArrowRight, Bell, BriefcaseBusiness, Check, Gauge, Goal, Landmark, LogOut, Menu, Clock, Sparkles, Wallet, X } from 'lucide-react';
-import type { Account, Data, Kind, Modal, Movement, Page, Store, User, Workspace } from '../features/finance/model';
-import { ApiError, financeApi, type ApiData, type Credentials, type WorkspaceInfo } from '../features/finance/api';
+import { ArrowLeftRight, ArrowRight, Bell, Check, Gauge, Goal, Landmark, LogOut, Menu, Clock, Sparkles, X } from 'lucide-react';
+import type { Account, Data, Kind, Modal, Movement, MovementInput, MovementStatus, Page, Store, Summary, User, Workspace } from '../features/finance/model';
+import { currentMonth, isConfirmed } from '../features/finance/model';
+import { ApiError, financeApi, type ApiData, type BudgetInput, type Credentials, type WorkspaceInfo } from '../features/finance/api';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { TransactionsPage, MovementFormModal } from '../features/transactions/TransactionsPage';
 import { AccountsPage, AccountFormModal } from '../features/accounts/AccountsPage';
-import { GoalsPage, GoalFormModal, GoalDepositModal } from '../features/goals/GoalsPage';
+import { GoalsPage, GoalFormModal, GoalDepositModal, BudgetFormModal } from '../features/goals/GoalsPage';
+import { CategoriesModal } from '../features/transactions/CategoriesModal';
 import { RecommendationsPage } from '../features/recommendations/RecommendationsPage';
 import { AuthPage } from '../features/auth/AuthPage';
 import { BrandMark } from '../components/BrandMark';
 import { ProfileModal, UserAvatar } from '../features/profile/ProfileModal';
-import { useProfile } from '../features/profile/profile';
+import { clearProfiles, useProfile } from '../features/profile/profile';
 import '../styles/app.css';
 
 function LiveClock() {
@@ -33,13 +35,13 @@ const nav: { id: Page; label: string; icon: typeof Gauge }[] = [
 ];
 
 function emptyData(): Data {
-  return { accounts: [], movements: [], goals: [], activity: [] };
+  return { accounts: [], movements: [], categories: [], goals: [], activity: [] };
 }
 
 async function loadStore(
   user: User,
   workspaces: WorkspaceInfo[],
-): Promise<{ store: Store; workspaceIds: Partial<Record<Workspace, string>> }> {
+): Promise<{ store: Store; workspaceIds: Partial<Record<Workspace, string>>; summary: Summary }> {
   const workspaceIds = Object.fromEntries(
     workspaces.map(({ id, kind }) => [kind, id]),
   ) as Partial<Record<Workspace, string>>;
@@ -49,10 +51,14 @@ async function loadStore(
     throw new Error('A conta não possui um espaço de trabalho configurado.');
   }
 
-  const selectedData = await financeApi.data(selectedWorkspace.id);
+  const [selectedData, summary] = await Promise.all([
+    financeApi.data(selectedWorkspace.id),
+    financeApi.summary(selectedWorkspace.id, currentMonth()),
+  ]);
   const workspace = selectedWorkspace.kind;
   return {
     workspaceIds,
+    summary,
     store: {
       user,
       workspace,
@@ -79,6 +85,9 @@ export default function FinanceApp() {
   const [page, setPage] = useState<Page>("home");
   const [modal, setModal] = useState<Modal>(null);
   const [depositGoal, setDepositGoal] = useState("");
+  const [editing, setEditing] = useState<Movement | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | MovementStatus>("all");
   const [signedIn, setSignedIn] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -105,6 +114,7 @@ export default function FinanceApp() {
         if (active) {
           setStore(session.store);
           setWorkspaceIds(session.workspaceIds);
+          setSummary(session.summary);
           setSignedIn(true);
           setAuthError('');
         }
@@ -126,12 +136,14 @@ export default function FinanceApp() {
   const data = store.data[store.workspace];
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-  const monthStart = `${currentYear}-${currentMonth}-01`;
-  const monthEnd = `${currentYear}-${currentMonth}-${String(
+  const monthNumber = String(now.getMonth() + 1).padStart(2, '0');
+  const monthStart = `${currentYear}-${monthNumber}-01`;
+  const monthEnd = `${currentYear}-${monthNumber}-${String(
     new Date(currentYear, now.getMonth() + 1, 0).getDate(),
   ).padStart(2, '0')}`;
-  const monthly = data.movements.filter(
+  // Totais e saldos consideram apenas transações confirmadas (pendentes e canceladas ficam de fora).
+  const confirmed = data.movements.filter(isConfirmed);
+  const monthly = confirmed.filter(
     (movement) => movement.date >= monthStart && movement.date <= monthEnd,
   );
   const income = monthly
@@ -142,7 +154,7 @@ export default function FinanceApp() {
     .reduce((s, m) => s + m.amount, 0);
   const accountBalance = (account: Account) =>
     account.opening +
-    data.movements
+    confirmed
       .filter((m) => m.account === account.id)
       .reduce((s, m) => s + (m.kind === "income" ? m.amount : -m.amount), 0);
   const balance = data.accounts.reduce((s, a) => s + accountBalance(a), 0);
@@ -165,6 +177,7 @@ export default function FinanceApp() {
       );
       setStore(loaded.store);
       setWorkspaceIds(loaded.workspaceIds);
+      setSummary(loaded.summary);
       setSignedIn(true);
       notice(credentials.mode === 'register' ? 'Conta criada com sucesso.' : `Bem-vindo(a), ${session.user.name.split(' ')[0]}.`);
     } catch (error) {
@@ -182,6 +195,7 @@ export default function FinanceApp() {
       notice(errorMessage(error), true);
     } finally {
       financeApi.clearSession();
+      clearProfiles();
       setModal(null);
       setSignedIn(false);
       setAuthError('');
@@ -191,35 +205,67 @@ export default function FinanceApp() {
   const reloadWorkspace = async (workspace: Workspace) => {
     const workspaceId = workspaceIds[workspace];
     if (!workspaceId) throw new Error('Espaço de trabalho não encontrado.');
-    const latestData: ApiData = await financeApi.data(workspaceId);
+    // Indicadores recalculados a cada alteração (RNF10).
+    const [latestData, latestSummary]: [ApiData, Summary] = await Promise.all([
+      financeApi.data(workspaceId),
+      financeApi.summary(workspaceId, currentMonth()),
+    ]);
     setStore((current) => ({
       ...current,
       data: { ...current.data, [workspace]: latestData },
     }));
+    setSummary(latestSummary);
   };
 
-  const runMutation = async (action: () => Promise<unknown>, successMessage: string) => {
+  const runMutation = async (action: () => Promise<unknown>, successMessage: string, close = true) => {
     try {
       await action();
       await reloadWorkspace(store.workspace);
-      setModal(null);
+      if (close) {
+        setModal(null);
+        setEditing(null);
+      }
       notice(successMessage);
+      return true;
     } catch (error) {
       notice(errorMessage(error), true);
+      return false;
     }
   };
 
-  const addMovement = (movement: Omit<Movement, 'id'>) =>
+  const workspaceId = () => workspaceIds[store.workspace]!;
+  const saveMovement = (movement: MovementInput) =>
+    editing
+      ? runMutation(
+          () => financeApi.updateMovement(workspaceId(), editing.id, movement),
+          'Lançamento atualizado.',
+        )
+      : runMutation(
+          () => financeApi.createMovement(workspaceId(), movement),
+          movement.status === 'pending' ? 'Lançamento salvo como pendente.' : 'Movimentação registrada.',
+        );
+  const changeStatus = (movement: Movement, status: MovementStatus) =>
     runMutation(
-      () => financeApi.createMovement(workspaceIds[store.workspace]!, movement),
-      'Movimentação registrada.',
+      () => financeApi.updateMovement(workspaceId(), movement.id, { status }),
+      status === 'cancelled'
+        ? 'Lançamento cancelado. Ele não entra mais nos saldos.'
+        : movement.kind === 'income' ? 'Recebimento confirmado.' : 'Pagamento confirmado.',
     );
+  const openNewMovement = () => {
+    setEditing(null);
+    setModal("movement");
+  };
+  const openMovement = (movement: Movement) => {
+    setEditing(movement);
+    setModal("movement");
+  };
 
   const handleSignOut = () => void signOut();
   const filtered = data.movements.filter(
     (m) =>
       (kindFilter === "all" || m.kind === kindFilter) &&
       (accountFilter === "all" || m.account === accountFilter) &&
+      (statusFilter === "all" || m.status === statusFilter) &&
       `${m.title} ${m.category}`.toLowerCase().includes(search.toLowerCase()),
   );
 
@@ -252,17 +298,6 @@ export default function FinanceApp() {
             planeja<span>-</span>se
           </span>
         </button>
-        <div className="workspace-indicator" aria-label="Espaço de trabalho escolhido no cadastro">
-          <span className={`workspace-mark ${store.workspace}`}>
-            {store.workspace === "personal" ? (
-              <Wallet size={17} />
-            ) : (
-              <BriefcaseBusiness size={17} />
-            )}
-          </span>
-          <span className="workspace-indicator-label">ESPAÇO DE TRABALHO</span>
-          <strong>{store.workspace === 'personal' ? 'Pessoal' : 'Empresarial'}</strong>
-        </div>
         <span className="nav-overline">MENU</span>
         <nav>
           {nav.map(({ id, label, icon: Icon }) => (
@@ -365,7 +400,8 @@ export default function FinanceApp() {
               accounts={data.accounts}
               accountBalance={accountBalance}
               goals={data.goals}
-              onAdd={() => setModal("movement")}
+              summary={summary}
+              onAdd={openNewMovement}
               onPage={setPage}
             />
           )}
@@ -379,8 +415,12 @@ export default function FinanceApp() {
               setKind={setKindFilter}
               account={accountFilter}
               setAccount={setAccountFilter}
+              status={statusFilter}
+              setStatus={setStatusFilter}
               activity={data.activity}
-              onAdd={() => setModal("movement")}
+              onAdd={openNewMovement}
+              onOpen={openMovement}
+              onCategories={() => setModal("categories")}
             />
           )}
           {page === "accounts" && (
@@ -389,11 +429,17 @@ export default function FinanceApp() {
               movements={data.movements}
               accountBalance={accountBalance}
               onAdd={() => setModal("account")}
+              onOpen={openMovement}
             />
           )}
           {page === "goals" && (
             <GoalsPage
               goals={data.goals}
+              summary={summary}
+              onAddBudget={() => setModal("budget")}
+              onDeleteBudget={(id) =>
+                void runMutation(() => financeApi.deleteBudget(workspaceId(), id), 'Meta mensal removida.')
+              }
               onAdd={() => setModal("goal")}
               onDeposit={(id) => {
                 setDepositGoal(id);
@@ -403,6 +449,7 @@ export default function FinanceApp() {
           )}
           {page === "help" && (
             <RecommendationsPage
+              summary={summary}
               income={income}
               expenses={expenses}
               balance={balance}
@@ -445,9 +492,42 @@ export default function FinanceApp() {
       )}
       {modal === "movement" && (
         <MovementFormModal
+          key={editing?.id ?? "new"}
           accounts={data.accounts}
+          categories={data.categories}
+          movement={editing ?? undefined}
+          recommendation={summary?.recommendation}
+          onClose={() => {
+            setModal(null);
+            setEditing(null);
+          }}
+          onSave={saveMovement}
+          onStatus={(status) => {
+            if (editing) void changeStatus(editing, status);
+          }}
+        />
+      )}
+      {modal === "categories" && (
+        <CategoriesModal
+          categories={data.categories}
           onClose={() => setModal(null)}
-          onSave={addMovement}
+          onCreate={(category) =>
+            runMutation(() => financeApi.createCategory(workspaceId(), category), 'Categoria criada.', false)
+          }
+          onDelete={(id) =>
+            void runMutation(() => financeApi.deleteCategory(workspaceId(), id), 'Categoria removida.', false)
+          }
+        />
+      )}
+      {modal === "budget" && (
+        <BudgetFormModal
+          categories={data.categories}
+          budgets={summary?.budgets ?? []}
+          month={currentMonth()}
+          onClose={() => setModal(null)}
+          onSave={(budget: BudgetInput) =>
+            runMutation(() => financeApi.saveBudget(workspaceId(), budget), 'Meta mensal salva.')
+          }
         />
       )}
       {modal === "account" && (

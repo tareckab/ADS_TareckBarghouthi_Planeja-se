@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowDownLeft, ArrowLeftRight, Banknote, CreditCard, Landmark, MoreHorizontal, X } from 'lucide-react';
 import type { Account, Movement } from '../features/finance/model';
-import { dateLabel, money } from '../features/finance/model';
+import { dateLabel, money, PRIORITY_LABEL, STATUS_LABEL } from '../features/finance/model';
 
 export function Heading({
   eyebrow,
@@ -38,10 +38,13 @@ export function MovementList({
   movements,
   accounts,
   compact = false,
+  onOpen,
 }: {
   movements: Movement[];
   accounts: Account[];
   compact?: boolean;
+  /** Quando informado, cada linha vira um botão que abre o lançamento para edição. */
+  onOpen?: (movement: Movement) => void;
 }) {
   if (!movements.length)
     return (
@@ -53,8 +56,14 @@ export function MovementList({
     );
   return (
     <div className="movement-list w-full">
-      {movements.map((m) => (
-        <div className="movement-row" key={m.id}>
+      {movements.map((m) => {
+        const Row = onOpen ? "button" : "div";
+        return (
+        <Row
+          className={`movement-row status-${m.status}${onOpen ? " is-clickable" : ""}`}
+          key={m.id}
+          {...(onOpen ? { type: "button" as const, onClick: () => onOpen(m), "aria-label": `Abrir ${m.title}` } : {})}
+        >
           <span className={`movement-icon ${m.kind}`}>
             {/renda|serviços/i.test(m.category) ? (
               <ArrowDownLeft size={17} />
@@ -67,7 +76,15 @@ export function MovementList({
             )}
           </span>
           <span className="movement-copy">
-            <b>{m.title}</b>
+            <b>
+              {m.title}
+              {m.status !== "confirmed" && (
+                <i className={`status-tag ${m.status}`}>{STATUS_LABEL[m.status]}</i>
+              )}
+              {m.priority === "urgent" && m.status !== "cancelled" && (
+                <i className="status-tag urgent">{PRIORITY_LABEL.urgent}</i>
+              )}
+            </b>
             <small>
               {m.category}
               {!compact
@@ -80,8 +97,9 @@ export function MovementList({
             {m.kind === "income" ? "+" : "−"}
             {money(m.amount)}
           </b>
-        </div>
-      ))}
+        </Row>
+        );
+      })}
     </div>
   );
 }
